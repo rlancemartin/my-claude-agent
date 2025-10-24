@@ -1,0 +1,23 @@
+[project]
+name = "open-claude-agent"
+version = "0.1.0"
+description = "An open-source implementation of an agent harness using Claude's recent tool capabilities and a few context engineering techniques."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.40.0",
+    "langgraph>=0.2.0",
+    "rich>=13.0.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.29.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/open_claude_agent"]
+
+[tool.uv]
+dev-dependencies = []
