@@ -6,10 +6,10 @@ from typing import Dict, Any, List, Union
 
 console = Console()
 
-
 def format_anthropic_tool_call(block, console_instance=None):
     """
     Format and display a raw Anthropic API tool use block.
+    Handles both client-side (tool_use) and server-side (server_tool_use) tools.
 
     Args:
         block: The tool use block from Anthropic API response
@@ -20,9 +20,24 @@ def format_anthropic_tool_call(block, console_instance=None):
 
     tool_info = Text()
     tool_name = block.name
+    is_server_tool = block.type == "server_tool_use"
 
     # Format based on tool type
-    if tool_name == "memory":
+    if tool_name == "web_search":
+        # Web search tool: show query
+        if is_server_tool:
+            tool_info.append("🌐 Server Tool Call: ", style="bold magenta")
+        else:
+            tool_info.append("🔧 Tool Call: ", style="bold yellow")
+        tool_info.append(f"web_search\n", style="bold cyan")
+        tool_info.append(f"   Query: ", style="white")
+        tool_info.append(f"{block.input.get('query', 'N/A')}\n", style="green")
+
+        if is_server_tool:
+            tool_info.append(f"   ", style="dim")
+            tool_info.append(f"(Executed server-side by Anthropic)\n", style="dim italic")
+
+    elif tool_name == "memory":
         # Memory tool: shows command and path
         tool_info.append("🔧 Tool Call: ", style="bold yellow")
         tool_info.append(f"{block.input.get('command')}\n", style="bold cyan")
@@ -51,7 +66,10 @@ def format_anthropic_tool_call(block, console_instance=None):
 
     else:
         # Generic tool formatting: show tool name and all inputs
-        tool_info.append("🔧 Tool Call: ", style="bold yellow")
+        if is_server_tool:
+            tool_info.append("🌐 Server Tool Call: ", style="bold magenta")
+        else:
+            tool_info.append("🔧 Tool Call: ", style="bold yellow")
         tool_info.append(f"{tool_name}\n", style="bold cyan")
         for key, value in block.input.items():
             tool_info.append(f"   {key}: ", style="white")
@@ -60,7 +78,13 @@ def format_anthropic_tool_call(block, console_instance=None):
             else:
                 tool_info.append(f"{value}\n", style="green")
 
-    console_instance.print(Panel(tool_info, border_style="yellow", padding=(0, 1)))
+        if is_server_tool:
+            tool_info.append(f"   ", style="dim")
+            tool_info.append(f"(Executed server-side by Anthropic)\n", style="dim italic")
+
+    # Use magenta border for server tools, yellow for client tools
+    border_style = "magenta" if is_server_tool else "yellow"
+    console_instance.print(Panel(tool_info, border_style=border_style, padding=(0, 1)))
 
 
 def format_anthropic_tool_result(result, console_instance=None):
@@ -240,6 +264,29 @@ def display_claude_response(response_text, console_instance=None):
 
     console_instance.print(Panel(response_text, title="💬 Claude", border_style="green", padding=(1, 2)))
 
+
+def show_prompt(prompt_text: str, title: str = "Prompt", border_style: str = "blue"):
+    """
+    Display a prompt with rich formatting and XML tag highlighting.
+    
+    Args:
+        prompt_text: The prompt string to display
+        title: Title for the panel (default: "Prompt")
+        border_style: Border color style (default: "blue")
+    """
+    # Create a formatted display of the prompt
+    formatted_text = Text(prompt_text)
+    formatted_text.highlight_regex(r'<[^>]+>', style="bold blue")  # Highlight XML tags
+    formatted_text.highlight_regex(r'##[^#\n]+', style="bold magenta")  # Highlight headers
+    formatted_text.highlight_regex(r'###[^#\n]+', style="bold cyan")  # Highlight sub-headers
+
+    # Display in a panel for better presentation
+    console.print(Panel(
+        formatted_text, 
+        title=f"[bold green]{title}[/bold green]",
+        border_style=border_style,
+        padding=(1, 2)
+    ))
 
 def show_prompt(prompt_text: str, title: str = "Prompt", border_style: str = "blue"):
     """
