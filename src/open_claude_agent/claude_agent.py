@@ -9,9 +9,9 @@ current working directory.
 
 import json
 from typing import Optional
-from utils import format_anthropic_tool_call, format_anthropic_tool_result, display_claude_response
-from tools import MemoryToolHandler, BashToolHandler, TextEditorToolHandler
-from prompts import GENERAL_TOOL_USAGE_GUIDELINES
+from .utils import format_anthropic_tool_call, format_anthropic_tool_result, display_claude_response
+from .tools import MemoryToolHandler, BashToolHandler, TextEditorToolHandler
+from .prompts import GENERAL_TOOL_USAGE_GUIDELINES
 
 
 class ClaudeAgent:

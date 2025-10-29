@@ -8,14 +8,17 @@ Anthropic released the [Claude Agent SDK](https://docs.claude.com/en/api/agent-s
 # Install uv if you haven't already (https://docs.astral.sh/uv/)
 # curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Sync dependencies (creates venv and installs everything from pyproject.toml)
+# Sync dependencies and install package in editable mode
 uv sync
+uv pip install -e .
 
 # Set your API key
 export ANTHROPIC_API_KEY=your_key_here
+```
 
-# Placeholder: Later will add the ability to pip install, leave this blank for now.
+Now you can use the agent in Python scripts or Jupyter notebooks:
 
+```python
 from open_claude_agent import ClaudeAgent
 import anthropic
 
@@ -31,16 +34,6 @@ agent = ClaudeAgent(
 # Bash and text editor tools work from current directory
 agent.call("Give me an overview of context engineering.")
 ```
-
-## System Messages
-
-The `ClaudeAgent` automatically includes tool usage guidelines in every system message. When you provide a custom `system_message`, it will be combined with the built-in guidelines:
-
-```
-Final System Message = GENERAL_TOOL_USAGE_GUIDELINES + Your Custom Message
-```
-
-This ensures Claude always knows how to properly use the tools while still following your specific instructions.
 
 ## Tools
 
