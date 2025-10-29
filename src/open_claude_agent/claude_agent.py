@@ -1,21 +1,22 @@
 """
-Simplified Claude Agent with built-in tools.
+Claude Agent with built-in tools.
 
 This module provides a high-level agent interface that automatically configures
-memory, bash, and web search tools. Users only need to provide instructions and
-a scratchpad directory.
+memory, bash, text editor, and web search tools. The memory tool operates in a
+dedicated ./memories directory, while bash and text editor tools work from the
+current working directory.
 """
 
 import json
-from pathlib import Path
 from typing import Optional
 from utils import format_anthropic_tool_call, format_anthropic_tool_result, display_claude_response
-from tools import MemoryToolHandler, BashToolHandler
+from tools import MemoryToolHandler, BashToolHandler, TextEditorToolHandler
+from prompts import GENERAL_TOOL_USAGE_GUIDELINES
 
 
 class ClaudeAgent:
     """
-    A simplified Claude agent with built-in memory, bash, and web search tools.
+    A simplified Claude agent with built-in memory, bash, text editor, and web search tools.
 
     This class provides a high-level interface for creating agents with minimal configuration.
     All tools are automatically set up and configured.
@@ -24,37 +25,48 @@ class ClaudeAgent:
     def __init__(
         self,
         client,
-        scratchpad_dir: str = "./scratchpad",
         system_message: Optional[str] = None,
         model: str = "claude-sonnet-4-5",
         max_tokens: int = 8192,
         max_web_searches: int = 15,
-        bash_timeout: int = 60
+        bash_timeout: int = 30
     ):
         """
         Initialize the Claude agent with built-in tools.
 
         Args:
             client: Anthropic API client instance
-            scratchpad_dir: Directory for persistent storage (memory and bash working dir)
-            system_message: Optional system prompt to guide Claude's behavior
+            system_message: Optional system prompt to guide Claude's behavior.
+                          Will be combined with built-in tool usage guidelines.
             model: Model name to use (default: claude-sonnet-4-5)
             max_tokens: Maximum tokens for response (default: 8192)
             max_web_searches: Maximum web searches per request (default: 15)
-            bash_timeout: Timeout for bash commands in seconds (default: 60)
+            bash_timeout: Timeout for bash commands in seconds (default: 30)
+
+        Note:
+            - Tool usage guidelines are automatically included in the system message
+            - Memory tool operates in ./memories directory (hardcoded, created automatically)
+            - Bash and text editor tools operate in current working directory (project root)
+            - Bash commands should use relative paths (./file.txt) not absolute paths (/file.txt)
         """
         self.client = client
         self.model = model
         self.max_tokens = max_tokens
-        self.system_message = system_message
 
-        # Set up scratchpad directory
-        self.scratchpad_path = Path(scratchpad_dir)
-        self.scratchpad_path.mkdir(exist_ok=True)
+        # Build the complete system message
+        # Always include tool usage guidelines, optionally append user instructions
+        if system_message:
+            self.system_message = f"{GENERAL_TOOL_USAGE_GUIDELINES}\n\n{system_message}"
+        else:
+            self.system_message = GENERAL_TOOL_USAGE_GUIDELINES
 
         # Initialize tool handlers
-        self.memory_handler = MemoryToolHandler(base_path=scratchpad_dir)
-        self.bash_handler = BashToolHandler(timeout=bash_timeout, working_dir=scratchpad_dir)
+        # Memory tool uses hardcoded ./memories directory
+        self.memory_handler = MemoryToolHandler()
+        # Bash tool operates from current working directory
+        self.bash_handler = BashToolHandler(timeout=bash_timeout, working_dir=None)
+        # Text editor tool operates from current working directory
+        self.text_editor_handler = TextEditorToolHandler(base_path=None)
 
         # Configure tools
         self.tools = [
@@ -67,6 +79,10 @@ class ClaudeAgent:
                 "name": "memory"
             },
             {
+                "type": "text_editor_20250728",
+                "name": "str_replace_based_edit_tool"  # API requires this specific name
+            },
+            {
                 "type": "web_search_20250305",
                 "name": "web_search",
                 "max_uses": max_web_searches
@@ -76,11 +92,12 @@ class ClaudeAgent:
         # Map tool names to handlers (web_search handled server-side)
         self.tool_handlers = {
             "bash": self.bash_handler.handle,
-            "memory": self.memory_handler.handle
+            "memory": self.memory_handler.handle,
+            "str_replace_based_edit_tool": self.text_editor_handler.handle
         }
 
         # Configure betas
-        self.betas = ["computer-use-2025-01-24", "context-management-2025-06-27"]
+        self.betas = ["context-management-2025-06-27"]
 
         # Configure context management
         self.context_management = {
@@ -113,9 +130,11 @@ class ClaudeAgent:
             user_message: The message to send to Claude
             max_turns: Maximum number of tool use iterations (default: 15)
         """
+        # Initialize messages with the user message
         messages = [{"role": "user", "content": user_message}]
 
         for _ in range(max_turns):
+            
             # Build API call parameters
             api_params = {
                 "model": self.model,
@@ -129,22 +148,35 @@ class ClaudeAgent:
             if self.system_message:
                 api_params["system"] = self.system_message
 
-            # Make API call to Claude
-            response = self.client.beta.messages.create(**api_params)
+            # Make API call to Claude with error handling
+            try:
+                response = self.client.beta.messages.create(**api_params)
+            except Exception as e:
+                # Handle API errors gracefully
+                error_msg = f"API Error: {str(e)}"
+                display_claude_response(error_msg)
 
-            # Check if Claude wants to use tools
+                # If it's a validation error, provide helpful context
+                if "invalid_request_error" in str(e):
+                    display_claude_response("\nTip: This may be a configuration issue with tool definitions. Check that tool names and types match API requirements.")
+                return
+
+            # Check if Claude wants to use client-side tools
             if response.stop_reason == "tool_use":
-                # Extract text response (if any) and tool uses
+                # Claude wants to use tools (client-side tools that need execution)
+                # Note: Response may also contain server_tool_use blocks (already executed by Anthropic)
                 assistant_message = {"role": "assistant", "content": []}
 
                 for block in response.content:
                     assistant_message["content"].append(block.model_dump())
 
-                    # Display server-side tool uses (like web_search) that may be mixed with client-side tools
+                    # Display server-side tool uses (like web_search)
+                    # These are already executed by Anthropic, just display for visibility
                     if block.type == "server_tool_use":
                         format_anthropic_tool_call(block)
 
-                    # Process client-side tool use blocks
+                    # Process client-side tool use blocks (bash, memory, text_editor)
+                    # These need to be executed locally and results sent back
                     elif block.type == "tool_use":
                         tool_name = block.name
 
@@ -177,25 +209,27 @@ class ClaudeAgent:
                 continue
 
             else:
-                # Check for server-side tool uses (like web_search)
-                # These are executed by Anthropic and don't need client-side handling
+                # Claude has provided a final response (stop_reason != "tool_use")
+                # This means Claude is done, even if it used server-side tools to get here
+                # Server-side tools (like web_search) are already executed by Anthropic
+
+                # Check for server-side tool uses and display them for visibility
                 has_server_tool_use = any(
                     block.type == "server_tool_use" for block in response.content
                 )
 
                 if has_server_tool_use:
-                    # Display server-side tool calls for visibility
+                    # Display what server-side tools were used
                     for block in response.content:
                         if block.type == "server_tool_use":
                             format_anthropic_tool_call(block)
 
-                # Claude provided a final response without tool use
+                # Extract and display Claude's final answer
                 final_text = ""
                 for block in response.content:
                     if hasattr(block, 'text'):
                         final_text += block.text
 
-                # Display the response
                 display_claude_response(final_text)
                 return
 

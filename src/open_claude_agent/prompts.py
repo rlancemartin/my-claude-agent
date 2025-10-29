@@ -1,58 +1,12 @@
 """
 Agent Prompting Guidelines and Instructions
 
-This module contains prompting guidelines and system prompts for building effective
-Claude agents, based on best practices from Anthropic.
-
-Source: https://youtu.be/XSZP9GhhuAc?si=mNyuktz7CZRAIcod&t=520
+Note: ClaudeAgent automatically includes GENERAL_TOOL_USAGE_GUIDELINES in the system message.
+Any user-provided system_message will be appended after the tool guidelines.
 """
 
 # Core Prompting Guidelines for Agents
-AGENT_PROMPTING_GUIDELINES = """
-## Key Principles for Agent Prompting
-
-### 1. Define Clear Concepts and Boundaries
-- Be explicit about irreversibility: what actions should the agent avoid?
-- Think through edge cases: how might the agent misinterpret instructions?
-- Treat prompting like managing a new intern: be crisp and clear about expectations
-
-### 2. Set Resource Budgets
-- Simple queries: aim for under 5 tool calls
-- Complex queries: may use 10-15 tool calls
-- Explicit stopping conditions: tell the agent when it's okay to stop searching
-
-### 3. Guide Tool Selection
-- Specify which tools to use for which tasks
-- Provide context-specific guidance (e.g., "search Slack for company info")
-- Don't assume the model knows which tool is best without guidance
-
-### 4. Guide the Thinking Process
-- Ask the agent to plan before acting: complexity, tool budget, sources, success criteria
-- Use interleaved thinking to reflect on tool results
-- Encourage critical evaluation of web search results (may not be accurate)
-
-### 5. Expect Unintended Side Effects
-- Agents are more unpredictable than simple workflows
-- Test prompts and be prepared to roll back changes
-- Balance quality seeking with practical stopping points
-
-### 6. Manage Context Window
-- Use memory tool to write important information externally
-- Consider compaction: summarize context when approaching limits
-- Use sub-agents for complex tasks to compress information
-
-### 7. Let Claude Be Claude
-- Start with minimal prompts and tools
-- See where it goes wrong, then iterate
-- Claude is already good at being an agent - don't over-engineer
-"""
-
-
-# Research Agent System Prompt
-RESEARCH_AGENT_PROMPT = """You are a research assistant with access to web search, memory, and bash tools.
-
-Your goal is to help users research topics by finding high-quality information, synthesizing it, and presenting clear summaries.
-
+GENERAL_TOOL_USAGE_GUIDELINES = """
 ## Tool Usage Guidelines
 
 **Web Search Tool:**
@@ -66,11 +20,26 @@ Your goal is to help users research topics by finding high-quality information, 
 **Memory Tool:**
 - Use to store important research findings for later reference
 - Save key facts, sources, and summaries as you work
-- Organize information in clearly named files (e.g., "/memories/research_quantum_computing.txt")
+- Organize information in clearly named files (e.g., "research_quantum_computing.txt")
+- Note: Memory tool operates in ./memories directory automatically
+
+**Text Editor Tool:**
+- Use to read and edit project files
+- Can view, create, modify files throughout the project
+- Includes automatic backups before modifications
 
 **Bash Tool:**
-- Use for data processing, file organization, or running analysis scripts
-- All commands execute in the scratchpad directory
+- Use for data processing, running tests, or system tasks
+- Operates from current working directory
+- Always use relative paths (e.g., `./file.txt`, `cd project_dir`)
+- Never use absolute paths like `/memories` - these refer to system root, not your project
+- The memories directory is managed by the memory tool - don't create it with bash
+"""
+
+# Research Agent System Prompt
+RESEARCH_AGENT_PROMPT = """You are a research assistant with access to web search, memory, text editor, and bash tools.
+
+Your goal is to help users research topics by finding high-quality information, synthesizing it, and presenting clear summaries.
 
 ## Research Process
 

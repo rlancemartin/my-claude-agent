@@ -22,41 +22,35 @@ import anthropic
 # Create agent with all tools pre-configured
 agent = ClaudeAgent(
     client=anthropic.Anthropic(),
-    scratchpad_dir="./scratchpad",  # Where to store memory & run bash
-    system_message="Your custom instructions here"  # Optional
+    system_message="Your custom instructions here"  # Optional - combined with tool guidelines
 )
 
 # Use the agent
+# Tool usage guidelines are automatically included
+# Memory tool will use ./memories directory
+# Bash and text editor tools work from current directory
 agent.call("Give me an overview of context engineering.")
 ```
 
-## Overview  
+## System Messages
 
-The `ClaudeAgent` class provides a high-level interface with a few generally useful built-in tools (filesystem, bash, web search), as discussed below.
+The `ClaudeAgent` automatically includes tool usage guidelines in every system message. When you provide a custom `system_message`, it will be combined with the built-in guidelines:
 
-### Filesystem Tool
- 
-*Store and retrieve persistent information across conversations*
+```
+Final System Message = GENERAL_TOOL_USAGE_GUIDELINES + Your Custom Message
+```
 
-This uses Claude's native support for filesystem tools. You supply the scratchpad directory, and it allows Claude to save information across conversations and maintain context even after context management clears old messages. 
+This ensures Claude always knows how to properly use the tools while still following your specific instructions.
 
-**How it works:**
+## Tools
 
-- Files are stored in `{scratchpad_dir}`
-- Claude can organize information into subdirectories
-- All paths in tool calls are relative to `/scratchpad_dir/` root
+The `ClaudeAgent` class provides a high-level interface with a few generally useful built-in tools (memory, file editing, bash, and web search), as discussed below.
 
-**When Claude Uses This Tool:**
-- **Storing user preferences**: Save settings, favorite configurations, or personal information
-- **Building knowledge bases**: Accumulate facts, research findings, or project context over time
-- **Maintaining state**: Track progress on multi-session tasks
-- **Learning from interactions**: Remember user feedback, corrections, or specific instructions
-- **Data persistence**: Keep structured data (JSON, CSV) that needs to survive conversation resets
+### Memory Tool
 
-Claude proactively uses memory when it recognizes information worth preserving for future interactions.
+Claude's [`memory tool`](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool) supports various filesystem operations, allowing Claude to store and retrieve information across conversations. You can think of this like a scratchpad for Claude.
 
-**Tool Handler:**
-Handler for the memory tool is provided in the `src/open_claude_agent/tools/memory_tool.py` file with the following commands for each of the tools that Claude can use.
+**Important**: The memory tool is hardcoded to operate in the `./memories` directory (created automatically). This keeps Claude's personal notes separate from your project files. 
 
 | Command | Description | Example Use Case |
 |---------|-------------|------------------|
@@ -67,136 +61,110 @@ Handler for the memory tool is provided in the `src/open_claude_agent/tools/memo
 | `delete` | Delete a file or directory | Clean up temporary files |
 | `rename` | Rename or move a file/directory | Reorganize stored information |
 
+We have a handler for this tool in `src/open_claude_agent/tools/memory_tool.py`, which implements each of these operations locally. Anthropic automatically adds some basic instructions to the system prompt for tool usage (see doc below), which tells it to always view the memory directory before doing anything else.
+
 **Reference**: [Claude Memory Tool Docs](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool)
 
 ### Bash Tool
-*Execute shell commands in the scratchpad directory*
 
-The bash tool gives Claude the ability to execute shell commands within your scratchpad directory.
+The bash tool gives Claude the ability to execute shell commands in a persistent session.
 
-**When Claude Uses This Tool:**
-- **File operations**: Create, modify, move, or delete files beyond what memory tool provides
-- **Data processing**: Run scripts to transform, analyze, or aggregate data
-- **System queries**: Check file sizes, count lines, search text with grep/sed/awk
-- **Package management**: Install dependencies or run package managers (npm, pip, etc.)
-- **Testing & validation**: Execute test suites, linters, or format checkers
-- **Build processes**: Compile code, bundle assets, or generate documentation
-- **Version control**: Run git commands to check status, commit changes, or view diffs
+**Important**:
+- The bash tool operates from the **current working directory** (your project root)
+- Session state persists across commands (environment variables, working directory)
+- All commands should use relative paths (e.g., `./file.txt`) not absolute paths (e.g., `/file.txt`)
 
-Claude uses bash when tasks require:
-1. Complex file manipulations beyond simple read/write
-2. Existing command-line tools (git, grep, jq, etc.)
-3. Scripting or automation workflows
-4. Verification of operations (checking file existence, content validation)
-
-**Tool Handler:**
-Handler for the bash tool is provided in the `src/open_claude_agent/tools/bash_tool.py` file.
-
-| Feature | Description | Example Use Case |
+| Command | Description | Example Use Case |
 |---------|-------------|------------------|
-| Command execution | Run any bash command with timeout protection | Create files, process data, run scripts |
-| Working directory | Commands execute in isolated scratchpad | Keep test files separate from source |
-| Output capture | Captures stdout, stderr, and exit codes | Verify command success, read results |
+| command | The bash command to run | Running tests, Git operations, System tasks, etc |
+
+**Best Practices:**
+- Use relative paths: `cd project_dir && ls` or `./script.sh`
+- Session persists within a conversation, so `cd` commands affect subsequent commands
+- Avoid absolute paths unless intentionally accessing system directories
+
+We have a handler for this tool in `src/open_claude_agent/tools/bash_tool.py`, which includes command validation to block dangerous patterns, output sanitization, timeout protection, and audit logging.
 
 **Reference**: [Claude Bash Tool Docs](https://docs.claude.com/en/docs/agents-and-tools/tool-use/bash-tool)
 
-### Web Search Tool
-*Real-time web search powered by server-side execution*
+### Text Editor Tool
 
-The web search tool is a **server-side tool** executed entirely by Anthropic's infrastructure. Unlike client-side tools (memory, bash), search requests and results are handled transparently without requiring custom handlers.
+Claude's [`text_editor tool`](https://docs.claude.com/en/docs/agents-and-tools/tool-use/text-editor-tool) provides file reading and editing capabilities with built-in safety features like automatic backups and exact text matching for replacements.
 
-| Feature | Description | Example Use Case |
+**Important**: The text editor tool operates from the current working directory (your project root), allowing Claude to read and edit files throughout your project.
+
+| Command | Description | Example Use Case |
 |---------|-------------|------------------|
-| Server-side execution | Searches run on Anthropic's servers, not your machine | No local infrastructure needed |
-| Real-time results | Access current web information | Research latest developments, verify facts |
-| Citation support | Results include source citations | Track information provenance |
-| Rate limiting | Configure max searches per request | Control API costs |
+| `view` | Read file contents or list directory contents | Browse codebase, review configurations, list files |
+| `str_replace` | Replace specific text with new content | Fix bugs, update configurations, refactor code |
+| `create` | Generate new files with content | Create new scripts, write documentation, add configs |
+| `insert` | Add text at specific line locations | Add imports, insert functions, update code |
+| `undo_edit` | Revert last file modification | Undo mistakes, restore previous version |
+
+We have a handler for this tool in `src/open_claude_agent/tools/text_editor_tool.py`, which implements file operations with automatic backup creation before modifications, path validation to prevent directory traversal attacks, and support for viewing specific line ranges.
+
+**Reference**: [Claude Text Editor Tool Docs](https://docs.claude.com/en/docs/agents-and-tools/tool-use/text-editor-tool) 
+
+### Web Search Tool
+
+The web search tool is a **server-side tool** executed entirely by Anthropic's infrastructure. Unlike client-side tools (memory, bash, text editor), search requests and results are handled without requiring custom handlers.
 
 **Reference**: [Claude Web Search Tool Docs](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool)
 
-### Context Management
-*Automatic conversation history management*
+## Context Engineering
 
-Context editing automatically manages conversation history as it grows, removing older content when prompts exceed configured thresholds. This enables long-running agentic workflows without manual history trimming.
+ClaudeAgent uses a few context engineering principles, derived from [Manus](https://rlancemartin.github.io/2025/10/15/manus/) and [Anthropic](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents).
 
-| Feature | Description | Example Use Case |
-|---------|-------------|------------------|
-| Automatic clearing | Removes old tool results when context grows | Long conversations with many tool calls |
-| Smart preservation | Keeps recent tool interactions intact | Maintain working context while clearing old results |
-| Memory integration | Pairs with memory tool to persist important info | Save key findings before context is cleared |
-| Cache-aware | Configurable clearing thresholds to balance cache hits | Optimize for performance in extended sessions |
+### Context Reduction
 
-**Reference**: [Context Editing Docs](https://docs.claude.com/en/docs/build-with-claude/context-editing)
+ClaudeAgent uses Claude's [context editing](https://docs.claude.com/en/docs/build-with-claude/context-editing) feature to automatically clear the oldest tool results in chronological order, replacing them with placeholder text to let Claude know the tool result was removed. 
 
-## Custom Instructions
+When context editing is enabled and your conversation approaches the clearing threshold, Claude automatically receives a warning notification. This prompts Claude to preserve any important information from tool results into memory files before those results are cleared from the context window. It will use the memory tool to do this.
 
-You can guide Claude's behavior by providing custom system instructions. This is particularly powerful for specialized agents like research assistants, code reviewers, or data analysts.
+### Context Offloading
 
-### Basic Example
+ClaudeAgent uses Claude's [memory tool]( https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool) to save information in memory files. 
 
-```python
-from open_claude_agent import ClaudeAgent
-import anthropic
+### Context Isolation
 
-agent = ClaudeAgent(
-    client=anthropic.Anthropic(),
-    scratchpad_dir="./scratchpad",
-    system_message="""You are a helpful research assistant.
+Placeholder: need to add this.
 
-    When conducting research:
-    - Start with broad searches, then narrow down
-    - Always cite your sources
-    - Save important findings to memory
-    - Organize results clearly
-    """
-)
+## Prompting Guidelines
 
-agent.call("Research the latest developments in quantum computing")
-```
+### 1. Define Clear Concepts and Boundaries
+- Be explicit about irreversibility: what actions should the agent avoid?
+- Think through edge cases: how might the agent misinterpret instructions?
+- Treat prompting like managing a new intern: be crisp and clear about expectations
 
-### Advanced Example with Research Agent
+### 2. Set Resource Budgets
+- Simple queries: aim for under 5 tool calls
+- Complex queries: may use 10-15 tool calls
+- Explicit stopping conditions: tell the agent when it's okay to stop searching
 
-```python
-from open_claude_agent import ClaudeAgent
-import anthropic
+### 3. Guide Tool Selection
+- Specify which tools to use for which tasks
+- Provide context-specific guidance (e.g., "search Slack for company info")
+- Don't assume the model knows which tool is best without guidance
 
-RESEARCH_AGENT_PROMPT = """You are a research assistant with access to web search, memory, and bash tools.
+### 4. Guide the Thinking Process
+- Ask the agent to plan before acting: complexity, tool budget, sources, success criteria
+- Use interleaved thinking to reflect on tool results
+- Encourage critical evaluation of web search results (may not be accurate)
 
-Your goal is to help users research topics by finding high-quality information, synthesizing it, and presenting clear summaries.
+### 5. Expect Unintended Side Effects
+- Agents are more unpredictable than simple workflows
+- Test prompts and be prepared to roll back changes
+- Balance quality seeking with practical stopping points
 
-## Tool Usage Guidelines
+### 6. Manage Context Window
+- Use memory tool to write important information externally
+- Consider compaction: summarize context when approaching limits
+- Use sub-agents for complex tasks to compress information
 
-**Web Search Tool:**
-- For simple queries: aim for 2-5 searches maximum
-- For complex topics: may use up to 10-15 searches
-- STOP searching once you have sufficient information
-- Critically evaluate source quality and relevance
-
-**Memory Tool:**
-- Store important research findings for later reference
-- Save key facts, sources, and summaries as you work
-- Organize in clearly named files (e.g., "/memories/research_topic.txt")
-
-**Bash Tool:**
-- Use for data processing or file organization
-- Run analysis scripts when needed
-
-## Research Process
-1. Plan: Assess query complexity and estimate tool calls needed
-2. Search: Start broad, then get specific
-3. Evaluate: Check source reliability
-4. Synthesize: Present findings clearly with citations
-"""
-
-agent = ClaudeAgent(
-    client=anthropic.Anthropic(),
-    scratchpad_dir="./scratchpad",
-    system_message=RESEARCH_AGENT_PROMPT,
-    max_web_searches=15
-)
-
-agent.call("Give me an overview of context engineering with popular papers")
-```
+### 7. Let Claude Be Claude
+- Start with minimal prompts and tools
+- See where it goes wrong, then iterate
+- Claude is already good at being an agent - don't over-engineer
 
 **Best Practices:**
 - Be specific about the agent's role and capabilities

@@ -16,7 +16,6 @@ from pathlib import Path
 import shutil
 from typing import Dict, Any
 
-
 class MemoryToolHandler:
     """
     Handler for Claude's memory tool commands.
@@ -34,14 +33,13 @@ class MemoryToolHandler:
         In production environments, additional security measures should be implemented.
     """
 
-    def __init__(self, base_path: str = "./scratchpad"):
+    def __init__(self):
         """
         Initialize the memory tool handler.
 
-        Args:
-            base_path: The base directory for memory storage (default: "./scratchpad")
+        The handler uses a hardcoded ./memories directory for all memory storage.
         """
-        self.base_path = Path(base_path)
+        self.base_path = Path("./memories")
         self.base_path.mkdir(exist_ok=True)
 
     def _normalize_path(self, path: str) -> Path:
@@ -221,7 +219,7 @@ class MemoryToolHandler:
 
 
 # Convenience function for backward compatibility
-def handle_memory_tool(tool_input: Dict[str, Any], base_path: str = "./scratchpad") -> Dict[str, Any]:
+def handle_memory_tool(tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """
     Convenience function to handle memory tool commands.
 
@@ -231,10 +229,9 @@ def handle_memory_tool(tool_input: Dict[str, Any], base_path: str = "./scratchpa
 
     Args:
         tool_input: Dictionary containing 'command' and command-specific parameters
-        base_path: The base directory for memory storage (default: "./scratchpad")
 
     Returns:
         Dictionary with the result of the operation
     """
-    handler = MemoryToolHandler(base_path=base_path)
+    handler = MemoryToolHandler()
     return handler.handle(tool_input)
