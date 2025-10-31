@@ -148,11 +148,16 @@ class MemoryToolHandler:
             return {"error": f"Path does not exist: {path}"}
 
     def _handle_create(self, full_path: Path, path: str, tool_input: Dict) -> Dict:
-        """Create or overwrite a file."""
-        content = tool_input.get("content", "")
+        """
+        Create or overwrite a file.
+
+        According to the official docs, the parameter name is 'file_text':
+        https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool
+        """
+        file_text = tool_input.get("file_text", "")
         full_path.parent.mkdir(parents=True, exist_ok=True)
         with open(full_path, 'w') as f:
-            f.write(content)
+            f.write(file_text)
         return {"message": f"Created file: {path}"}
 
     def _handle_str_replace(self, full_path: Path, path: str, tool_input: Dict) -> Dict:

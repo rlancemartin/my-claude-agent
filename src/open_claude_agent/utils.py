@@ -137,8 +137,12 @@ def format_anthropic_tool_result(result, console_instance=None):
         result_text.append(result.get('message', str(result)), style="green")
         border_style = "green"
 
+        # Show response_preview if present (e.g., for server-side tool results)
+        if result.get("response_preview"):
+            result_text.append(f"\n   Preview: ", style="white")
+            result_text.append(result["response_preview"], style="dim")
         # Show additional result data if present
-        if result.get("type") == "directory":
+        elif result.get("type") == "directory":
             result_text.append(f"\n   Contents: {result.get('contents', [])}", style="dim")
         elif result.get("type") == "file" and result.get("content"):
             preview = result["content"][:100]
