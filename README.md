@@ -1,6 +1,6 @@
 #  Open Claude Agent
 
-Anthropic released the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview#why-use-the-claude-agent-sdk%3F), a pre-built agent harness that powers [Claude Code](https://www.claude.com/product/claude-code). This is a minimal, simple, and open source harness that aims to reproduce some of these features in the Agent SDK. It uses Claude's native support for [filesystem tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool), [bash tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/bash-tool), [web search tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool), and [context editing](https://www.anthropic.com/news/context-management) together. 
+Anthropic released the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview#why-use-the-claude-agent-sdk%3F), a pre-built agent harness that powers [Claude Code](https://www.claude.com/product/claude-code). This is a minimal, simple, and open source agent harness that aims to reproduce some of these features in the Agent SDK. It uses Claude's native support for [filesystem tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool), [bash tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/bash-tool), [web search tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool), and [context editing](https://www.anthropic.com/news/context-management) together. 
 
 ## Quickstart
 
@@ -103,6 +103,33 @@ We have a handler for this tool in `src/open_claude_agent/tools/text_editor_tool
 The web search tool is a **server-side tool** executed entirely by Anthropic's infrastructure. Unlike client-side tools (memory, bash, text editor), search requests and results are handled without requiring custom handlers.
 
 **Reference**: [Claude Web Search Tool Docs](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool)
+
+## Testing
+
+Integration tests are available to verify that each tool works correctly with the real Anthropic API.
+
+### Running Tests
+
+```bash
+# Set your API key
+export ANTHROPIC_API_KEY=your_key_here
+
+# Run all tests using the test runner
+./run_tests.sh
+
+# Or run directly with pytest
+uv run pytest tests/ -v
+```
+
+### Test Coverage
+
+The test suite includes integration tests for all four tools:
+- **Memory Tool**: Creates and reads files in `./memories`
+- **Bash Tool**: Executes shell commands
+- **Text Editor Tool**: Creates, modifies, and reads files
+- **Web Search Tool**: Performs web searches
+
+**Note**: These are integration tests that call the real Anthropic API, so they will incur API costs and require an active internet connection.
 
 ## Context Engineering
 

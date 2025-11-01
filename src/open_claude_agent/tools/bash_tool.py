@@ -15,6 +15,9 @@ Usage:
 import subprocess
 import re
 import logging
+import uuid
+import threading
+import queue
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -47,11 +50,59 @@ class BashSession:
             ['/bin/bash'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Merge stderr into stdout
             text=True,
             cwd=self.working_dir,
-            bufsize=1
+            bufsize=0  # Unbuffered
         )
+
+    def _read_with_timeout(self, timeout: int) -> tuple[str, bool]:
+        """
+        Read output from the process with a timeout.
+
+        Args:
+            timeout: Timeout in seconds
+
+        Returns:
+            Tuple of (output, timed_out)
+        """
+        output_lines = []
+        output_queue = queue.Queue()
+
+        def reader():
+            """Read lines from stdout."""
+            try:
+                while True:
+                    line = self.process.stdout.readline()
+                    if not line:
+                        break
+                    output_queue.put(line)
+            except Exception as e:
+                output_queue.put(f"Error reading output: {e}\n")
+
+        # Start reader thread
+        thread = threading.Thread(target=reader, daemon=True)
+        thread.start()
+
+        # Read with timeout
+        import time
+        start_time = time.time()
+        end_marker_seen = False
+
+        while time.time() - start_time < timeout:
+            try:
+                line = output_queue.get(timeout=0.1)
+                if "___END_OF_COMMAND___" in line:
+                    end_marker_seen = True
+                    break
+                output_lines.append(line)
+            except queue.Empty:
+                continue
+
+        if not end_marker_seen:
+            return ("".join(output_lines), True)  # Timed out
+
+        return ("".join(output_lines), False)
 
     def execute_command(self, command: str, timeout: int = 30) -> Dict[str, Any]:
         """
@@ -65,37 +116,81 @@ class BashSession:
             Dictionary with output, error, and exit code
         """
         try:
-            # Send command to bash process
-            self.process.stdin.write(f"{command}\n")
+            # Check if process is still alive
+            if self.process.poll() is not None:
+                self._start_session()
+
+            # Generate unique marker
+            marker = f"___END_OF_COMMAND___{uuid.uuid4()}"
+
+            # Send command with exit code capture and marker
+            full_command = f"{command}\necho \"EXIT_CODE:$?\"\necho \"{marker}\"\n"
+            self.process.stdin.write(full_command)
             self.process.stdin.flush()
 
-            # Wait for command to complete with timeout
-            stdout, stderr = self.process.communicate(timeout=timeout)
+            # Read output with timeout
+            output, timed_out = self._read_with_timeout(timeout)
+
+            if timed_out:
+                self.process.kill()
+                self._start_session()
+                return {
+                    "output": output,
+                    "error": f"Command timed out after {timeout} seconds",
+                    "exit_code": -1
+                }
+
+            # Extract exit code
+            exit_code = 0
+            lines = output.split('\n')
+            for i, line in enumerate(lines):
+                if line.startswith("EXIT_CODE:"):
+                    try:
+                        exit_code = int(line.split(":", 1)[1].strip())
+                        # Remove the exit code line from output
+                        lines = lines[:i] + lines[i+1:]
+                        break
+                    except (ValueError, IndexError):
+                        pass
+
+            output = '\n'.join(lines).rstrip()
 
             return {
-                "output": stdout,
-                "error": stderr if stderr else None,
-                "exit_code": self.process.returncode or 0
+                "output": output,
+                "error": None,
+                "exit_code": exit_code
             }
-        except subprocess.TimeoutExpired:
-            self.process.kill()
-            self._start_session()  # Restart session after timeout
+
+        except Exception as e:
+            logger.error(f"Error in execute_command: {str(e)}")
+            # Restart session on error
+            try:
+                self.process.kill()
+            except:
+                pass
+            self._start_session()
             return {
                 "output": "",
-                "error": f"Command timed out after {timeout} seconds",
+                "error": f"Session error: {str(e)}",
                 "exit_code": -1
             }
 
     def restart(self):
         """Restart the bash session."""
         if self.process:
-            self.process.kill()
+            try:
+                self.process.kill()
+            except:
+                pass
         self._start_session()
 
     def close(self):
         """Close the bash session."""
         if self.process:
-            self.process.kill()
+            try:
+                self.process.kill()
+            except:
+                pass
 
 
 class BashToolHandler:

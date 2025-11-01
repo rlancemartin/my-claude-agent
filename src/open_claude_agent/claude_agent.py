@@ -189,19 +189,25 @@ class ClaudeAgent:
                 # Build assistant message
                 assistant_message = {"role": "assistant", "content": []}
 
-                # Collect all text blocks as the tool result
+                # Track text blocks and whether we've seen server tools
+                seen_server_tool = False
                 all_text_blocks = []
 
                 for block in response.content:
                     # Add all content blocks to assistant message
                     assistant_message["content"].append(block.model_dump())
 
-                    # Display server-side tool call when we encounter it
-                    if block.type == "server_tool_use":
-                        format_anthropic_tool_call(block)
+                    # Display text blocks before server tools as thinking
+                    if block.type == "text" and not seen_server_tool and block.text.strip():
+                        display_claude_response(f"💭 Thinking: {block.text}")
 
-                    # Collect all text blocks (these are the tool results  that follow the server_tool_use block)
-                    elif block.type == "text":
+                    # Display server-side tool call when we encounter it
+                    elif block.type == "server_tool_use":
+                        format_anthropic_tool_call(block)
+                        seen_server_tool = True
+
+                    # Collect text blocks after server tools (these are the results)
+                    elif block.type == "text" and seen_server_tool:
                         all_text_blocks.append(block.text)
 
                 # Display the collected text as the tool result
@@ -224,9 +230,14 @@ class ClaudeAgent:
                 assistant_message = {"role": "assistant", "content": []}
                 tool_results = []
 
+                # Process blocks and display thinking/text before tool calls
                 for block in response.content:
                     # Add all content blocks to assistant message
                     assistant_message["content"].append(block.model_dump())
+
+                    # Display text blocks (Claude's thought process)
+                    if block.type == "text" and block.text.strip():
+                        display_claude_response(f"💭 Thinking: {block.text}")
 
                     # Process client-side tool use blocks
                     if block.type == "tool_use":
@@ -280,12 +291,16 @@ class ClaudeAgent:
                     # Add all content blocks to assistant message
                     assistant_message["content"].append(block.model_dump())
 
+                    # Display text blocks before any tools as thinking
+                    if block.type == "text" and not seen_server_tool and block.text.strip():
+                        display_claude_response(f"💭 Thinking: {block.text}")
+
                     # Display server-side tool call when we encounter it
-                    if block.type == "server_tool_use":
+                    elif block.type == "server_tool_use":
                         format_anthropic_tool_call(block)
                         seen_server_tool = True
 
-                    # Collect text blocks (server tool results) until we hit client tools
+                    # Collect text blocks (server tool results) after server tools
                     elif block.type == "text" and seen_server_tool:
                         server_text_blocks.append(block.text)
 
@@ -351,6 +366,11 @@ class ClaudeAgent:
                 # stop_reason is likely "end_turn" or "max_tokens"
                 # No tools were used (neither client-side nor server-side)
 
+                # Build assistant message
+                assistant_message = {"role": "assistant", "content": []}
+                for block in response.content:
+                    assistant_message["content"].append(block.model_dump())
+
                 # Extract and display Claude's final answer
                 final_text = ""
                 for block in response.content:
@@ -358,6 +378,9 @@ class ClaudeAgent:
                         final_text += block.text
 
                 display_claude_response(final_text)
+
+                # Add final assistant message to conversation
+                messages.append(assistant_message)
                 return messages
 
         # If max turns reached, display a message
