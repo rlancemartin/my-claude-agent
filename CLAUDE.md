@@ -31,7 +31,7 @@ export ANTHROPIC_API_KEY=your_key_here
 - Automatically configures 4 built-in tools: memory, bash, text_editor, web_search
 - Implements conversation loop with tool use iterations (max 15 turns by default)
 - Uses context management via Claude's context editing feature (clear_tool_uses_20250919)
-- System messages automatically composed: `GENERAL_TOOL_USAGE_GUIDELINES + custom_message`
+- System messages automatically composed: `GENERAL_TOOL_USAGE_GUIDELINES + skills_metadata + custom_message`
 - Three response handling paths in the loop:
   1. Server-side tools only: Display results, continue loop
   2. Client-side tools only: Execute locally, add results to messages, continue loop
@@ -70,6 +70,57 @@ Three context management principles:
    - Encouraged to preserve key information to `./memories` directory
 
 3. **Context Isolation**: Placeholder - not yet implemented
+
+### Skills System
+
+The agent supports modular skills that package domain-specific expertise and tools. Skills follow Anthropic's progressive disclosure architecture for efficient context management.
+
+**Skill Loader** (`src/open_claude_agent/skill_loader.py`):
+- `SkillLoader` class scans `./skills` directory for subdirectories containing `SKILL.md`
+- Parses YAML frontmatter to extract `name` and `description` metadata
+- Formats metadata into system message section (Level 1: Progressive Disclosure)
+- Convenience function `load_skills(skills_dir)` returns formatted context string
+
+**Skills Directory Structure** (`./skills/`):
+```
+skills/
+└── skill-name/
+    ├── SKILL.md         # Required: YAML frontmatter + documentation
+    ├── reference.md     # Optional: additional docs
+    └── script.py        # Optional: executable code
+```
+
+**Progressive Disclosure (3 Levels)**:
+1. **Metadata**: Skill name and description loaded into system prompt at initialization
+2. **Core Content**: Full `SKILL.md` read via bash tool when skill is relevant
+3. **Resources**: Additional files and scripts accessed only as needed
+
+**Integration with ClaudeAgent**:
+- New parameters: `skills_dir` (default: `./skills`), `enable_skills` (default: `True`)
+- System message construction: `GENERAL_TOOL_USAGE_GUIDELINES + skills_metadata + custom_message`
+- Skills loaded once during `__init__`, not on every `call()`
+- No new tools needed - uses existing bash tool for file reading and script execution
+
+**Usage Pattern**:
+```python
+# Skills enabled by default
+agent = ClaudeAgent(client=client)
+
+# Custom skills directory
+agent = ClaudeAgent(client=client, skills_dir="./my-skills")
+
+# Disable skills
+agent = ClaudeAgent(client=client, enable_skills=False)
+```
+
+**Skill Discovery and Execution**:
+1. Agent sees all skill names/descriptions in system prompt (Level 1)
+2. When task matches a skill, agent reads: `cat ./skills/skill-name/SKILL.md` (Level 2)
+3. Agent follows instructions, potentially running scripts: `python ./skills/skill-name/script.py` (Level 3)
+
+**Example Skills**:
+- `skills/research-assistant/`: Comprehensive research workflow with report generator script
+- See `skills/README.md` for skill creation guide
 
 ### Tool Architecture Details
 
@@ -136,9 +187,14 @@ Example tool definition:
 ```python
 agent = ClaudeAgent(
     client=anthropic.Anthropic(),
-    system_message="Your custom instructions"  # Appended after GENERAL_TOOL_USAGE_GUIDELINES
+    system_message="Your custom instructions"  # Appended after guidelines and skills
 )
 ```
+
+System message composition order:
+1. `GENERAL_TOOL_USAGE_GUIDELINES` (always included)
+2. Skills metadata (if `enable_skills=True`)
+3. Custom `system_message` (if provided)
 
 ### Tool Result Format
 

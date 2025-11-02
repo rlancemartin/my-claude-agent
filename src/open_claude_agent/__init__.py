@@ -8,6 +8,7 @@ from .prompts import (
     RESEARCH_AGENT_PROMPT,
     SIMPLE_RESEARCH_INSTRUCTIONS
 )
+from .skill_loader import SkillLoader, load_skills
 from .utils import (
     display_claude_response,
     format_anthropic_tool_call,
@@ -22,6 +23,8 @@ __all__ = [
     "GENERAL_TOOL_USAGE_GUIDELINES",
     "RESEARCH_AGENT_PROMPT",
     "SIMPLE_RESEARCH_INSTRUCTIONS",
+    "SkillLoader",
+    "load_skills",
     "display_claude_response",
     "format_anthropic_tool_call",
     "format_anthropic_tool_result",

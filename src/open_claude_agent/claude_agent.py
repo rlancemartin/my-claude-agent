@@ -12,6 +12,7 @@ from typing import Optional
 from .utils import format_anthropic_tool_call, format_anthropic_tool_result, display_claude_response
 from .tools import MemoryToolHandler, BashToolHandler, TextEditorToolHandler
 from .prompts import GENERAL_TOOL_USAGE_GUIDELINES
+from .skill_loader import load_skills
 
 
 class ClaudeAgent:
@@ -29,7 +30,9 @@ class ClaudeAgent:
         model: str = "claude-sonnet-4-5",
         max_tokens: int = 8192,
         max_web_searches: int = 15,
-        bash_timeout: int = 30
+        bash_timeout: int = 30,
+        skills_dir: str = "./skills",
+        enable_skills: bool = True
     ):
         """
         Initialize the Claude agent with built-in tools.
@@ -42,9 +45,12 @@ class ClaudeAgent:
             max_tokens: Maximum tokens for response (default: 8192)
             max_web_searches: Maximum web searches per request (default: 15)
             bash_timeout: Timeout for bash commands in seconds (default: 30)
+            skills_dir: Path to skills directory (default: ./skills)
+            enable_skills: Whether to load and use skills (default: True)
 
         Note:
             - Tool usage guidelines are automatically included in the system message
+            - Skills metadata (if enabled) is injected after guidelines, before custom message
             - Memory tool operates in ./memories directory (hardcoded, created automatically)
             - Bash and text editor tools operate in current working directory (project root)
             - Bash commands should use relative paths (./file.txt) not absolute paths (/file.txt)
@@ -54,11 +60,20 @@ class ClaudeAgent:
         self.max_tokens = max_tokens
 
         # Build the complete system message
-        # Always include tool usage guidelines, optionally append user instructions
+        # Components: tool usage guidelines + skills metadata + user instructions
+        message_components = [GENERAL_TOOL_USAGE_GUIDELINES]
+
+        # Load and inject skills metadata (Level 1: Progressive Disclosure)
+        if enable_skills:
+            skills_context = load_skills(skills_dir)
+            if skills_context:
+                message_components.append(skills_context)
+
+        # Append user's custom system message
         if system_message:
-            self.system_message = f"{GENERAL_TOOL_USAGE_GUIDELINES}\n\n{system_message}"
-        else:
-            self.system_message = GENERAL_TOOL_USAGE_GUIDELINES
+            message_components.append(system_message)
+
+        self.system_message = "\n\n".join(message_components)
 
         # Initialize tool handlers
         # Memory tool uses hardcoded ./memories directory

@@ -104,6 +104,105 @@ The web search tool is a **server-side tool** executed entirely by Anthropic's i
 
 **Reference**: [Claude Web Search Tool Docs](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool)
 
+## Skills
+
+Skills extend Claude's capabilities by packaging domain-specific knowledge and tools into modular, reusable resources. Based on [Anthropic's skills architecture](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills), skills use progressive disclosure to manage context efficiently.
+
+### How Skills Work
+
+Skills follow a three-level progressive disclosure pattern:
+
+1. **Level 1 - Metadata**: Skill `name` and `description` appear in the system prompt
+2. **Level 2 - Documentation**: Claude reads full `SKILL.md` when the skill is relevant
+3. **Level 3+ - Resources**: Additional files and scripts accessed only as needed
+
+This approach allows agents to access "effectively unbounded" context since they don't need to load everything at once.
+
+### Using Skills
+
+Skills are enabled by default:
+
+```python
+from open_claude_agent import ClaudeAgent
+import anthropic
+
+# Skills automatically loaded from ./skills directory
+agent = ClaudeAgent(
+    client=anthropic.Anthropic(),
+    enable_skills=True,      # Default: True
+    skills_dir="./skills"    # Default: ./skills
+)
+
+# Claude sees skill metadata and can read full documentation when needed
+agent.call("Help me research the history of transformer models")
+```
+
+### Creating Skills
+
+Create a new skill by adding a directory under `skills/`:
+
+```
+skills/
+└── my-skill/
+    ├── SKILL.md         # Required: YAML frontmatter + documentation
+    ├── reference.md     # Optional: additional docs
+    └── script.py        # Optional: executable tools
+```
+
+**SKILL.md format:**
+
+```markdown
+---
+name: my-skill
+description: Brief description used for discovery
+---
+
+# Skill Title
+
+## When to Use This Skill
+
+Describe scenarios where this skill is relevant...
+
+## How to Use
+
+Step-by-step instructions...
+
+## Scripts
+
+If including executable code:
+
+\`\`\`bash
+python skills/my-skill/script.py --input data.csv
+\`\`\`
+```
+
+### Example: Research Assistant
+
+The included `skills/research-assistant/` demonstrates:
+- Structured SKILL.md with workflow guidance
+- Python script for report generation
+- Integration with memory tool for note-taking
+- Best practices for research workflows
+
+See `skills/README.md` for a complete guide to creating skills.
+
+### Skills vs Custom System Messages
+
+- **Skills**: Modular, reusable, discoverable by Claude based on task relevance
+- **System Message**: Global instructions that apply to all tasks
+
+Skills complement custom system messages—use both together for specialized agents:
+
+```python
+agent = ClaudeAgent(
+    client=anthropic.Anthropic(),
+    system_message="You are a Python code reviewer",  # Custom role
+    enable_skills=True  # Skills available when needed
+)
+```
+
+**Reference**: [Anthropic: Equipping Agents with Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
+
 ## Testing
 
 Integration tests are available to verify that each tool works correctly with the real Anthropic API.
