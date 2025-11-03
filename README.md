@@ -1,8 +1,6 @@
 #  my-claude-agent
 
-Anthropic released the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview#why-use-the-claude-agent-sdk%3F), a pre-built agent harness that powers [Claude Code](https://www.claude.com/product/claude-code). This is a minimal, simple, and open source agent harness that reproduces some of these features in the Agent SDK.
-
-It takes advantage of Claude's native support for [filesystem tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool), [bash tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/bash-tool), [web search tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool), and [context editing](https://www.anthropic.com/news/context-management) together. 
+Anthropic released the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview#why-use-the-claude-agent-sdk%3F), a pre-built agent harness that powers [Claude Code](https://www.claude.com/product/claude-code). This is a minimal, simple, and open source agent harness that reproduces some of these features in the Agent SDK. It takes advantage of Claude's native support for [filesystem tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool), [bash tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/bash-tool), [web search tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool), and [context editing](https://www.anthropic.com/news/context-management) together. 
 
 ## Quickstart
 
@@ -33,6 +31,8 @@ agent = ClaudeAgent(
 # Use the agent
 agent.call("Give me an overview of context engineering.")
 ```
+
+<img width="1616" height="1048" alt="Screenshot 2025-11-02 at 7 57 53 PM" src="https://github.com/user-attachments/assets/1d1b7923-d905-4b23-961b-34e8494864ca" />
 
 ## Tools
 
