@@ -1,6 +1,8 @@
-#  Open Claude Agent
+#  my-claude-agent
 
-Anthropic released the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview#why-use-the-claude-agent-sdk%3F), a pre-built agent harness that powers [Claude Code](https://www.claude.com/product/claude-code). This is a minimal, simple, and open source agent harness that aims to reproduce some of these features in the Agent SDK. It uses Claude's native support for [filesystem tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool), [bash tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/bash-tool), [web search tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool), and [context editing](https://www.anthropic.com/news/context-management) together. 
+Anthropic released the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview#why-use-the-claude-agent-sdk%3F), a pre-built agent harness that powers [Claude Code](https://www.claude.com/product/claude-code). This is a minimal, simple, and open source agent harness that reproduces some of these features in the Agent SDK.
+
+It takes advantage of Claude's native support for [filesystem tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool), [bash tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/bash-tool), [web search tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool), and [context editing](https://www.anthropic.com/news/context-management) together. 
 
 ## Quickstart
 
@@ -25,13 +27,10 @@ import anthropic
 # Create agent with all tools pre-configured
 agent = ClaudeAgent(
     client=anthropic.Anthropic(),
-    system_message="Your custom instructions here"  # Optional - combined with tool guidelines
+    system_message="Your custom instructions here"  # Optional
 )
 
 # Use the agent
-# Tool usage guidelines are automatically included
-# Memory tool will use ./memories directory
-# Bash and text editor tools work from current directory
 agent.call("Give me an overview of context engineering.")
 ```
 
@@ -175,33 +174,6 @@ If including executable code:
 python skills/my-skill/script.py --input data.csv
 \`\`\`
 ```
-
-### Example: Research Assistant
-
-The included `skills/research-assistant/` demonstrates:
-- Structured SKILL.md with workflow guidance
-- Python script for report generation
-- Integration with memory tool for note-taking
-- Best practices for research workflows
-
-See `skills/README.md` for a complete guide to creating skills.
-
-### Skills vs Custom System Messages
-
-- **Skills**: Modular, reusable, discoverable by Claude based on task relevance
-- **System Message**: Global instructions that apply to all tasks
-
-Skills complement custom system messages—use both together for specialized agents:
-
-```python
-agent = ClaudeAgent(
-    client=anthropic.Anthropic(),
-    system_message="You are a Python code reviewer",  # Custom role
-    enable_skills=True  # Skills available when needed
-)
-```
-
-**Reference**: [Anthropic: Equipping Agents with Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 
 ## Testing
 
