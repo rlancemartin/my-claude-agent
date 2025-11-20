@@ -1,0 +1,7 @@
+# Dependencies for Biomni Agent Skills
+
+# PubMed search skill
+pymed>=0.8.9
+
+# arXiv search skill
+arxiv>=2.0.0
