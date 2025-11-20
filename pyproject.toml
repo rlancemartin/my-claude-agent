@@ -9,6 +9,8 @@ dependencies = [
     "rich>=13.0.0",
     "jupyter>=1.0.0",
     "ipykernel>=6.29.0",
+    "pymed>=0.8.9",
+    "arxiv>=2.3.0",
 ]
 
 [build-system]

@@ -8,6 +8,8 @@ current working directory.
 """
 
 import json
+import os
+from pathlib import Path
 from typing import Optional
 from .utils import format_anthropic_tool_call, format_anthropic_tool_result, display_claude_response
 from .tools import MemoryToolHandler, BashToolHandler, TextEditorToolHandler
@@ -31,7 +33,7 @@ class ClaudeAgent:
         max_tokens: int = 8192,
         max_web_searches: int = 15,
         bash_timeout: int = 30,
-        skills_dir: str = "./skills",
+        skills_dir: Optional[str] = None,
         enable_skills: bool = True
     ):
         """
@@ -45,7 +47,9 @@ class ClaudeAgent:
             max_tokens: Maximum tokens for response (default: 8192)
             max_web_searches: Maximum web searches per request (default: 15)
             bash_timeout: Timeout for bash commands in seconds (default: 30)
-            skills_dir: Path to skills directory (default: ./skills)
+            skills_dir: Path to skills directory. If None, defaults to src/open_claude_agent/skills
+                       (bundled with the package). Can be overridden with an absolute path or a
+                       path relative to CWD.
             enable_skills: Whether to load and use skills (default: True)
 
         Note:
@@ -65,7 +69,17 @@ class ClaudeAgent:
 
         # Load and inject skills metadata (Level 1: Progressive Disclosure)
         if enable_skills:
-            skills_context = load_skills(skills_dir)
+            # Resolve skills directory path
+            if skills_dir is None:
+                # Default: skills directory next to this file
+                # This file is at: src/open_claude_agent/claude_agent.py
+                # Skills dir is at: src/open_claude_agent/skills
+                package_file = Path(__file__)
+                resolved_skills_dir = str(package_file.parent / "skills")
+            else:
+                resolved_skills_dir = skills_dir
+
+            skills_context = load_skills(resolved_skills_dir)
             if skills_context:
                 message_components.append(skills_context)
 
@@ -269,8 +283,8 @@ class ClaudeAgent:
                                 "error": f"No handler registered for tool: {tool_name}"
                             }
 
-                        # Display tool result
-                        format_anthropic_tool_result(result)
+                        # Display tool result (pass tool context for skill detection)
+                        format_anthropic_tool_result(result, tool_name=tool_name, tool_input=block.input)
 
                         # Collect tool result for adding to messages
                         tool_results.append({
@@ -344,8 +358,8 @@ class ClaudeAgent:
                                 "error": f"No handler registered for tool: {tool_name}"
                             }
 
-                        # Display tool result
-                        format_anthropic_tool_result(result)
+                        # Display tool result (pass tool context for skill detection)
+                        format_anthropic_tool_result(result, tool_name=tool_name, tool_input=block.input)
 
                         # Collect tool result for adding to messages
                         tool_results.append({

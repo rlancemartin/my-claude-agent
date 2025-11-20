@@ -2,9 +2,28 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 import json
-from typing import Dict, Any, List, Union
+import re
+from typing import Dict, Any, List, Union, Optional
 
 console = Console()
+
+
+def detect_skill_usage(command: str) -> Optional[str]:
+    """
+    Detect if a bash command is loading a skill and extract the skill name.
+
+    Args:
+        command: The bash command string
+
+    Returns:
+        Skill name if detected, None otherwise
+    """
+    # Match patterns like: cat ./skills/skill-name/SKILL.md
+    pattern = r'cat\s+\./skills/([^/]+)/SKILL\.md'
+    match = re.search(pattern, command)
+    if match:
+        return match.group(1)
+    return None
 
 def format_anthropic_tool_call(block, console_instance=None):
     """
@@ -53,11 +72,23 @@ def format_anthropic_tool_call(block, console_instance=None):
 
     elif tool_name == "bash":
         # Bash tool: shows command directly
-        tool_info.append("🔧 Tool Call: ", style="bold yellow")
-        tool_info.append(f"bash\n", style="bold cyan")
-        tool_info.append(f"   Command: ", style="white")
         command_text = block.input.get('command', 'N/A')
-        tool_info.append(f"{command_text}\n", style="green")
+
+        # Check if this is loading a skill
+        skill_name = detect_skill_usage(command_text)
+
+        if skill_name:
+            # Special formatting for skill loading
+            tool_info.append("📚 Loading Skill: ", style="bold blue")
+            tool_info.append(f"{skill_name}\n", style="bold cyan")
+            tool_info.append(f"   Command: ", style="white")
+            tool_info.append(f"{command_text}\n", style="dim")
+        else:
+            # Regular bash command
+            tool_info.append("🔧 Tool Call: ", style="bold yellow")
+            tool_info.append(f"bash\n", style="bold cyan")
+            tool_info.append(f"   Command: ", style="white")
+            tool_info.append(f"{command_text}\n", style="green")
 
         # Show restart flag if present
         if block.input.get('restart'):
@@ -82,18 +113,23 @@ def format_anthropic_tool_call(block, console_instance=None):
             tool_info.append(f"   ", style="dim")
             tool_info.append(f"(Executed server-side by Anthropic)\n", style="dim italic")
 
-    # Use magenta border for server tools, yellow for client tools
-    border_style = "magenta" if is_server_tool else "yellow"
+    # Use magenta border for server tools, blue for skills, yellow for client tools
+    if tool_name == "bash" and detect_skill_usage(block.input.get('command', '')):
+        border_style = "blue"
+    else:
+        border_style = "magenta" if is_server_tool else "yellow"
     console_instance.print(Panel(tool_info, border_style=border_style, padding=(0, 1)))
 
 
-def format_anthropic_tool_result(result, console_instance=None):
+def format_anthropic_tool_result(result, console_instance=None, tool_name=None, tool_input=None):
     """
     Format and display a raw Anthropic API tool result.
 
     Args:
         result: The tool result dictionary
         console_instance: Optional Rich Console instance (defaults to global console)
+        tool_name: Optional tool name for context-aware formatting
+        tool_input: Optional tool input for detecting skill usage
     """
     if console_instance is None:
         console_instance = console
@@ -107,10 +143,23 @@ def format_anthropic_tool_result(result, console_instance=None):
         border_style = "red"
     # Bash tool result format
     elif "exit_code" in result:
+        # Check if this was a skill loading command
+        is_skill_load = False
+        skill_name = None
+        if tool_name == "bash" and tool_input:
+            command = tool_input.get('command', '')
+            skill_name = detect_skill_usage(command)
+            is_skill_load = skill_name is not None
+
         if result.get("exit_code") == 0:
-            result_text.append("✓ Success: ", style="bold green")
-            result_text.append(result.get('message', 'Command executed successfully'), style="green")
-            border_style = "green"
+            if is_skill_load:
+                result_text.append("✓ Skill Loaded: ", style="bold blue")
+                result_text.append(f"{skill_name}", style="blue")
+                border_style = "blue"
+            else:
+                result_text.append("✓ Success: ", style="bold green")
+                result_text.append(result.get('message', 'Command executed successfully'), style="green")
+                border_style = "green"
         else:
             result_text.append("⚠ Exit Code: ", style="bold yellow")
             result_text.append(f"{result.get('exit_code')}", style="yellow")

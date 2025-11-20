@@ -48,13 +48,17 @@ export ANTHROPIC_API_KEY=your_key_here
 **Utilities** (`src/open_claude_agent/utils.py`):
 - Rich console formatting using panels and styled text
 - `format_anthropic_tool_call()`: Displays both client-side (tool_use) and server-side (server_tool_use) tool calls
+  - Special visualization for skill loading: detects when bash commands are reading SKILL.md files
+  - Shows "📚 Loading Skill: skill-name" with blue border instead of regular bash formatting
 - `format_anthropic_tool_result()`: Shows success/error states with color coding
+  - Detects skill loading results and displays "✓ Skill Loaded: skill-name" with blue styling
+- `detect_skill_usage()`: Helper function to detect when bash commands are loading skills
 - `display_claude_response()`: Final response display
 
 **Prompts** (`src/open_claude_agent/prompts.py`):
 - `GENERAL_TOOL_USAGE_GUIDELINES`: Core instructions automatically included in every system message
-- `RESEARCH_AGENT_PROMPT`: Pre-built research assistant with planning guidance
-- `SIMPLE_RESEARCH_INSTRUCTIONS`: Lightweight research guidance
+
+Note: Research guidance is now available through the `web-research` skill (bundled at `src/open_claude_agent/skills/web-research/SKILL.md`).
 
 ### Context Engineering
 
@@ -76,14 +80,14 @@ Three context management principles:
 The agent supports modular skills that package domain-specific expertise and tools. Skills follow Anthropic's progressive disclosure architecture for efficient context management.
 
 **Skill Loader** (`src/open_claude_agent/skill_loader.py`):
-- `SkillLoader` class scans `./skills` directory for subdirectories containing `SKILL.md`
+- `SkillLoader` class scans skills directory for subdirectories containing `SKILL.md`
 - Parses YAML frontmatter to extract `name` and `description` metadata
 - Formats metadata into system message section (Level 1: Progressive Disclosure)
 - Convenience function `load_skills(skills_dir)` returns formatted context string
 
-**Skills Directory Structure** (`./skills/`):
+**Skills Directory Structure** (bundled at `src/open_claude_agent/skills/`):
 ```
-skills/
+src/open_claude_agent/skills/
 └── skill-name/
     ├── SKILL.md         # Required: YAML frontmatter + documentation
     ├── reference.md     # Optional: additional docs
@@ -96,18 +100,22 @@ skills/
 3. **Resources**: Additional files and scripts accessed only as needed
 
 **Integration with ClaudeAgent**:
-- New parameters: `skills_dir` (default: `./skills`), `enable_skills` (default: `True`)
+- New parameters:
+  - `skills_dir` (default: `None` - auto-resolves to `src/open_claude_agent/skills/`)
+  - `enable_skills` (default: `True`)
+- Path resolution: When `skills_dir=None`, automatically resolves to the bundled skills directory at `src/open_claude_agent/skills/`
 - System message construction: `GENERAL_TOOL_USAGE_GUIDELINES + skills_metadata + custom_message`
 - Skills loaded once during `__init__`, not on every `call()`
 - No new tools needed - uses existing bash tool for file reading and script execution
 
 **Usage Pattern**:
 ```python
-# Skills enabled by default
+# Skills enabled by default (uses bundled skills)
 agent = ClaudeAgent(client=client)
 
-# Custom skills directory
-agent = ClaudeAgent(client=client, skills_dir="./my-skills")
+# Custom skills directory (absolute or relative to CWD)
+agent = ClaudeAgent(client=client, skills_dir="/absolute/path/to/skills")
+agent = ClaudeAgent(client=client, skills_dir="./my-custom-skills")
 
 # Disable skills
 agent = ClaudeAgent(client=client, enable_skills=False)
@@ -115,12 +123,20 @@ agent = ClaudeAgent(client=client, enable_skills=False)
 
 **Skill Discovery and Execution**:
 1. Agent sees all skill names/descriptions in system prompt (Level 1)
-2. When task matches a skill, agent reads: `cat ./skills/skill-name/SKILL.md` (Level 2)
-3. Agent follows instructions, potentially running scripts: `python ./skills/skill-name/script.py` (Level 3)
+2. When task matches a skill, agent reads the SKILL.md using the absolute path from metadata (Level 2)
+3. Agent follows instructions, potentially running scripts using paths provided in the skill documentation (Level 3)
 
-**Example Skills**:
-- `skills/research-assistant/`: Comprehensive research workflow with report generator script
-- See `skills/README.md` for skill creation guide
+**Best Practices for SKILL.md**:
+- **File References**: Skills should reference their own resources using absolute paths (provided in metadata)
+- **YAML Frontmatter**: Required at the top with `name` and `description` fields
+- **Clear Instructions**: Provide explicit usage examples; paths are provided via metadata
+- **Resource Organization**: Keep related files in the same skill directory
+
+**Bundled Skills**:
+- `arxiv-search`: arXiv paper search with Python script
+- `pubmed-search`: PubMed database search with Python script
+- `web-research`: Comprehensive web research workflow (prompt-based)
+- See `src/open_claude_agent/skills/README.md` for skill creation guide
 
 ### Tool Architecture Details
 

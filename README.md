@@ -119,26 +119,36 @@ This approach allows agents to access "effectively unbounded" context since they
 
 ### Using Skills
 
-Skills are enabled by default:
+Skills are enabled by default and bundled with the package:
 
 ```python
 from open_claude_agent import ClaudeAgent
 import anthropic
 
-# Skills automatically loaded from ./skills directory
+# Skills automatically loaded from bundled skills directory
 agent = ClaudeAgent(
     client=anthropic.Anthropic(),
-    enable_skills=True,      # Default: True
-    skills_dir="./skills"    # Default: ./skills
+    enable_skills=True  # Default: True
+)
+
+# Use custom skills directory if needed
+agent = ClaudeAgent(
+    client=anthropic.Anthropic(),
+    skills_dir="/path/to/custom/skills"  # Override default
 )
 
 # Claude sees skill metadata and can read full documentation when needed
 agent.call("Help me research the history of transformer models")
 ```
 
-### Creating Skills
+**Built-in Skills:**
+- `arxiv-search`: Search arXiv for academic papers
+- `pubmed-search`: Search PubMed for biomedical research
+- `web-research`: Comprehensive web research workflow
 
-Create a new skill by adding a directory under `skills/`:
+### Creating Custom Skills
+
+To create your own skills, create a custom skills directory:
 
 ```
 skills/
